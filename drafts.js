@@ -43,7 +43,8 @@ const addControl = (p, c) => {
 // }
 const customPrompt = p => 
   p.controls.reduce(addControl, newPrompt(p.title, p.message));
-  
+
+// (Title, Message) -> String
 const inputString = (t, m) => {
   const pObj = {
     title: t,
@@ -58,6 +59,16 @@ const inputString = (t, m) => {
   return p.show() 
     ? p.fieldValues['i']
     : '';
+};
+
+// Takes in a custom prompt definition, prompts for input, and creates new template tags (prefixed with 'prompt_') for each field in the prompt. 
+// Returns false if the prompt is canceled, true otherwise. 
+const promptForTags = promptDef => {
+  const p = customPrompt(promptDef);
+  if (!p.show()) return false;
+  const setTag = (value, key) => draft.setTemplateTag(`prompt_${key}`, value);
+  R.forEachObjIndexed(setTag, p.fieldValues);
+  return true;
 };
 
 // #region CallbackURL
