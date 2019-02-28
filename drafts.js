@@ -143,3 +143,28 @@ const wrapSelection = (start, end) => {
   editor.setSelectedText(newText);
   editor.setSelectedRange(newPos, 0);
 }
+
+//#region Miscellaneous
+
+const csvToObj = (csv, sep = ',') => {
+  const
+    unquote = s => s.replace(/^"?(.*?)"?$/, '$1'),
+    csvSplit = s => s.split(sep).map(unquote),
+    lines = csv.split('\n'),
+    headers = csvSplit(lines[0]),
+    csvZip = R.zipObj(headers),
+    result = lines.slice(1).reduce(
+      (ls,l) => {
+        ls.push(csvZip(csvSplit(l)));
+        return ls;
+      },[]);
+  
+  return result;
+}
+
+const jsonDraftToObj = R.pipe(
+  R.split('\n'),
+  R.drop(1), // comment title
+  R.join('\n'),
+  JSON.parse
+);
