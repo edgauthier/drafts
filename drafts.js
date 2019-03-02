@@ -168,3 +168,12 @@ const jsonDraftToObj = R.pipe(
   R.join('\n'),
   JSON.parse
 );
+
+// Takes a list of drafts where each 
+// draft is a JSON object (with a title 
+// comment) and returns an array of JSON 
+// objects
+const draftsToJsonArray = R.pipe(
+  R.map(d => d.content),
+  R.map(jsonDraftToObj)
+);
