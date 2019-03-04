@@ -163,17 +163,17 @@ const csvToObj = (csv, sep = ',') => {
 }
 
 const jsonDraftToObj = R.pipe(
+  R.prop('content'),
   R.split('\n'),
   R.drop(1), // comment title
   R.join('\n'),
   JSON.parse
 );
 
-// Takes a list of drafts where each 
-// draft is a JSON object (with a title 
-// comment) and returns an array of JSON 
-// objects
-const draftsToJsonArray = R.pipe(
-  R.map(d => d.content),
-  R.map(jsonDraftToObj)
-);
+const openHtmlInBrowser = (html, useSafari = false) => {
+  const 
+    content = encodeURIComponent(html),
+    data = `data:text/html;charset=utf-8,${content}`;
+  return data;
+  app.openURL(data, useSafari);
+};
