@@ -110,6 +110,18 @@ const loadDraft = d => {
   return d;
 };
 
+const setTemplateTags = (d, tags) => {
+  const setTag = (v,t) => d.setTemplateTag(t,v);
+  R.forEachObjIndexed(setTag, tags);
+};
+
+const templateDraft = (tpl, props) => {
+  let d = Draft.create();
+  setTemplateTags(d, props);
+  d.content = d.processTemplate(tpl);
+  return d;
+};
+
 // #region Selected Text
 
 // Return the selected text if any
@@ -162,7 +174,7 @@ const csvToObj = (csv, sep = ',') => {
   return result;
 }
 
-const jsonDraftToObj = R.pipe(
+const parseJsonDraft = R.pipe(
   R.prop('content'),
   R.split('\n'),
   R.drop(1), // comment title
@@ -170,10 +182,43 @@ const jsonDraftToObj = R.pipe(
   JSON.parse
 );
 
-const openHtmlInBrowser = (html, useSafari = false) => {
-  const 
-    content = encodeURIComponent(html),
-    data = `data:text/html;charset=utf-8,${content}`;
-  return data;
-  app.openURL(data, useSafari);
+const jsonDraftToObj = d => {
+  let obj = parseJsonDraft(d);
+  obj['id'] = d.uuid;
+  return obj;
 };
+
+const readFile = path => {
+  const fm = FileManager.createCloud();
+  const output = fm.readString(path);
+  return R.defaultTo('', output);
+};
+
+const readLib = path => {
+  const base = 'Library/Scripts/';
+  return readFile(base + path);
+};
+
+const dataToJS = R.pipe(
+  R.toPairs,
+  R.map(p => `const ${p[0]} = ${JSON.stringify(p[1])};`),
+  R.join('\n')
+);
+
+const isEmptyOrNil = R.anyPass([R.isEmpty, R.isNil]);
+
+const saveConfig = (name, config) => {
+  const fm = FileManager.createLocal();
+  fm.writeString(`/${name}.json`, JSON.stringify(config));
+}
+
+const loadConfig = name => {
+  const 
+    parseConfig = R.pipe(
+      R.when(isEmptyOrNil, R.always('{}')),
+      JSON.parse
+    ),
+    fm = FileManager.createLocal(),
+    config = fm.readString(`/${name}.json`);
+  return parseConfig(config);
+}
