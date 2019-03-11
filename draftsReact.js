@@ -33,16 +33,6 @@ const taggedCss = tag => {
   return combineCss(ds);
 };
 
-const validateReact = (data, code) => {
-  require('react.min.js');
-  require('react-dom.min.js');
-  let document = {
-    getElementById: () => ''
-  };
-  const js = R.concat(data, code);
-  eval(js);
-};
-
 const runReact = (tag, title, data) => {
   const props = {
     title,
