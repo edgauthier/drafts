@@ -48,8 +48,7 @@ const runReact = (tag, title, data) => {
   
   const
     t = '[[template|react_html.txt]]',
-    d = templateDraft(t, props),
-    a = Action.find('HTML View');
+    d = templateDraft(t, props);
     
-  app.queueAction(a,d);
+  previewHtmlDraft(d);
 };
