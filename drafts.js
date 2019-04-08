@@ -222,3 +222,10 @@ const loadConfig = name => {
     config = fm.readString(`/${name}.json`);
   return parseConfig(config);
 }
+
+const previewHtml = html => {
+  const p = HTMLPreview.create();
+  return p.show(html);
+}
+
+const previewHtmlDraft = d => previewHtml(d.content);
