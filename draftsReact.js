@@ -4,12 +4,17 @@
 require('babel.min.js');
 
 const parseJsxDraft = d => {
-  const 
-    opts = {presets: ['stage-2', 'react']},
-    jsxToJs = input => Babel.transform(input, opts).code;
-
-  return d ? jsxToJs(d.content) : '';
+  return d ? transpileJsx(d.content) : '';
 };
+
+const transpileJsx = jsx => {
+  const 
+    opts = {
+      presets: ['stage-2', 'react'],
+    },
+    output = Babel.transform(jsx, opts);
+  return output.code;
+}
 
 const taggedJsx = tag => {
   const 
