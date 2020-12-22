@@ -1,5 +1,3 @@
-// drafts
-
 // General-purpose functional library. 
 // More info at https://ramdajs.com/
 require('ramda.js');
@@ -122,6 +120,12 @@ const templateDraft = (tpl, props) => {
   return d;
 };
 
+const cleanSlate = () => {
+  app.hideDraftList();
+  editor.new();
+  editor.deactivate();
+};
+
 // #region Selected Text
 
 // Return the selected text if any
@@ -182,21 +186,23 @@ const parseJsonDraft = R.pipe(
   JSON.parse
 );
 
-const jsonDraftToObj = d => {
+const jsonDraftToObjWithId = d => {
   let obj = parseJsonDraft(d);
   obj['id'] = d.uuid;
   return obj;
 };
 
-const readFile = path => {
-  const fm = FileManager.createCloud();
-  const output = fm.readString(path);
-  return R.defaultTo('', output);
+const jsonDraftIdToObj = id => {
+  let d = Draft.find(id);
+  return parseJsonDraft(d);
 };
 
 const readLib = path => {
-  const base = 'Library/Scripts/';
-  return readFile(base + path);
+  const
+    fm = FileManager.createCloud(),
+    fullPath = `Library/Scripts/${path}`,
+    output = fm.readString(fullPath);
+  return R.defaultTo('', output);
 };
 
 const dataToJS = R.pipe(
@@ -229,3 +235,190 @@ const previewHtml = html => {
 }
 
 const previewHtmlDraft = d => previewHtml(d.content);
+
+const dropFirstLine = R.pipe(
+  R.split('\n'),
+  R.drop(1),
+  R.join('\n')
+);
+
+//#region Date functions
+
+const shortDate = d => {
+  const
+    year = d.getFullYear(),
+    month = R.add(d.getMonth(),1)
+      .toString().padStart(2,'0'),
+    day = d.getDate()
+      .toString().padStart(2,'0');
+  return `${year}-${month}-${day}`;
+};
+
+const todayShort = () => shortDate(Date.today());
+
+const addMonths = (date, months) => {
+  let future = new Date(date);
+  future.setMonth(date.getMonth() + +months);
+  if (future.getDate() != date.getDate()) {
+    future.setDate(0);
+  }
+  return future;
+};
+
+// accepts a date and an offset (ex: +3w, -2d, +1m)
+// returns a new date adjusted by the offset
+const offsetDate = (date, offset) => {
+  let d = new Date(date);
+  let offsetRegex = /(\+|-)(\d+)(d|w|m)/;
+  let match = offset.match(offsetRegex);
+  let multiplier = (match[1] == "+" ? 1 : -1);
+  
+  if (match[3] == "d") {
+    d.setDate(d.getDate() + multiplier * parseInt(match[2]));
+  } 
+  else if (match[3] == "w") {
+    d.setDate(d.getDate() + multiplier * 7 * parseInt(match[2]));
+  } 
+  else if (match[3] == "m") {
+    d = addMonths(d, multiplier * parseInt(match[2]));
+  }
+  
+  return d;
+};
+
+//#region Mustache functions
+
+// Prompt for input to replace mustache-based variables in 
+// the supplied text and return the updated text
+const mustachePrompt = text => {
+  const vars = mustacheVars(text);
+  let output = null;
+  
+  if (Object.keys(vars).length == 0) {
+    // Nothing to process
+    output = text;
+  }
+  else {
+    const p = variablePrompt(vars);
+    if (p.show()){
+      const data = promptDataForVars(p, vars);
+      const preparedText = replaceVariables(vars, text);
+      const template = MustacheTemplate.createWithTemplate(preparedText);
+      output = template.render(data);
+    }
+    else {
+      context.cancel('Variable prompt canceled');
+    }
+  }
+  
+  return output;
+};
+
+// Extract mustache variables from input text
+const mustacheVars = text => {
+  const varRegex = /{{((?:(date|bool):)?(#|^)?(\w+)\??([+|-]\d+[d|w|m])?)}}/g;
+  const varMatches = text.matchAll(varRegex);
+  // generate a mustache-compatible key without our extensions (type, offset)
+  const extractKeyName = instance => {
+    const tokenizeOffset = R.pipe(
+      R.replace('+', '_offset_forward_'),
+      R.replace('-', '_offset_backwards_')
+    );
+    let key = instance.data;
+    if (instance.type){
+      key = key.replace(`${instance.type}:`, '');
+    }
+    if (instance.offset){
+      key = key.replace(instance.offset, tokenizeOffset(instance.offset));
+    }
+    return key;
+  };
+  // create an instance object based on match groups from regex
+  const getInstance = match => {
+    let instance = {
+      'string': match[0], // full match
+      'data': match[1], // data inside {{ }}
+      'type': match[2],
+      'modifier': match[3],
+      'name': match[4],
+      'offset': match[5]
+    };
+    instance['key'] = extractKeyName(instance);
+    return instance;
+  };
+  let vars = {};
+
+  for (match of varMatches) {
+    let instance = getInstance(match);
+    vars[instance.name] ??= {'instances': []}; // create variable entry if needed
+    vars[instance.name].instances.push(instance);
+    vars[instance.name].type ??= instance.type; // set type if not already set
+    vars[instance.name].modifier ??= instance.modifier; // set modifier if not already set
+  }
+  
+  return vars;
+};
+
+// Create a prompt to collect data for a number of variables
+// use the 'type' property on a variable to use the most 
+// appropriate control for intput
+const variablePrompt = vars => {
+  const p = Prompt.create();
+
+  Object.entries(vars).forEach(([name, variable]) => {  
+    if (variable.type == "date") {
+      p.addDatePicker(name, name, new Date(), {mode: "date"});
+    } 
+    else if (variable.type == "bool") {
+      p.addSwitch(name, name, false);
+    }
+    else {
+      p.addTextField(name, name, "");
+    }
+  });
+  p.addButton("OK");
+  
+  return p;
+};
+
+// Generate data based on prompt input for a set of variables
+const promptDataForVars = (p, vars) => {
+  const dateFormat = '%Y-%m-%d';
+  let data = {};
+  
+  for (key in p.fieldValues) {
+    let fieldValue = p.fieldValues[key];
+    if (fieldValue instanceof Date) {
+      data[key] = strftime(fieldValue, dateFormat);
+      vars[key].instances.forEach(instance => {
+        // for instances with offset dates, calculate offset date
+        if (instance.offset){
+          const newDate = offsetDate(fieldValue, instance.offset);
+          data[instance.key] = strftime(newDate, dateFormat);
+        }
+      });
+    } 
+    else if ((typeof fieldValue == 'string') &&
+              fieldValue.includes(',') &&
+              (vars[key].modifier == '#')) {
+      // process it as a comma separated list
+      data[key] = fieldValue.split(',').map(s => s.trim());
+    } 
+    else {
+      data[key] = fieldValue;
+    }
+  }
+  return data;
+};
+
+// replace variables with their sanitized key names
+// in preparation for processing as a mustache template
+const replaceVariables = (vars, text) => {
+  let output = text;
+  Object.values(vars).forEach(variable => {
+     Object.values(variable.instances).forEach( instance => {
+      output = output.replace(instance.string, `{{${instance.key}}}`);
+    });
+  });
+  return output;
+}
