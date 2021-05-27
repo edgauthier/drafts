@@ -69,6 +69,33 @@ const promptForTags = promptDef => {
   return true;
 };
 
+// prompts for an input and 
+const inputTag = (title, tag, type = 'text') => {
+  let controls = [];
+  switch (type){
+    case 'date':
+      controls.push(['addDatePicker', [tag, '', new Date(), {'mode': 'date'}]]);
+      break;
+    case 'text': 
+    default: 
+      controls.push(['addTextField', [tag, '', '', {'wantsFocus': true}]]);
+  }
+  controls.push(['addButton', ['OK']]);
+  
+  if (promptForTags({title, controls})){
+    if (type == 'date'){
+      const tagName = `prompt_${tag}`;
+      const d = new Date(draft.getTemplateTag(tagName));
+      draft.setTemplateTag(tagName, shortDate(d));
+    }
+    editor.activate();
+  }
+  else {
+    context.cancel();
+    editor.activate();
+  }
+}
+
 // #region CallbackURL
 
 // URL -> CallbackURL
@@ -160,6 +187,31 @@ const wrapSelection = (start, end) => {
   editor.setSelectedRange(newPos, 0);
 }
 
+const getSelectedLines = () => {
+  const
+    // grab selection ranges and text
+    selRange = editor.getSelectedRange(),
+    lnRange = editor.getSelectedLineRange(),
+    lnText = editor.getTextInRange(...lnRange),
+    trailingNewline = lnText.endsWith("\n"),
+    // ignore trailing newline from getSelectedLineRange if present
+    lines = splitLines(trailingNewline ? lnText.slice(0, -1) : lnText);
+  return lines;
+}
+
+const setSelectedLines = lines => {
+  const 
+    lnRange = editor.getSelectedLineRange(),
+    lnText = editor.getTextInRange(...lnRange),
+    trailingNewline = lnText.endsWith("\n"),
+    newText = joinLines(lines) + (trailingNewline ? '\n' : ''),
+    newStart = lnRange[0],
+    newLen = newText.length;
+
+  editor.setTextInRange(...lnRange, newText);
+  editor.setSelectedRange(newStart, newLen);
+}
+
 //#region Miscellaneous
 
 const csvToObj = (csv, sep = ',') => {
@@ -242,17 +294,15 @@ const dropFirstLine = R.pipe(
   R.join('\n')
 );
 
+// lines :: String -> [String]
+const splitLines = s => s.split(/[\r\n]/);
+
+// unlines :: [String] -> String
+const joinLines = xs => xs.join('\n');
+
 //#region Date functions
 
-const shortDate = d => {
-  const
-    year = d.getFullYear(),
-    month = R.add(d.getMonth(),1)
-      .toString().padStart(2,'0'),
-    day = d.getDate()
-      .toString().padStart(2,'0');
-  return `${year}-${month}-${day}`;
-};
+const shortDate = d => strftime(d, '%Y-%m-%d');
 
 const todayShort = () => shortDate(Date.today());
 
@@ -288,6 +338,9 @@ const offsetDate = (date, offset) => {
 
 //#region Mustache functions
 
+// Mustache functions below based on work by Peter Davison-Reiber
+// https://polymaths.blog/2020/12/mustache-prompt-for-drafts
+
 // Prompt for input to replace mustache-based variables in 
 // the supplied text and return the updated text
 const mustachePrompt = text => {
@@ -313,6 +366,8 @@ const mustachePrompt = text => {
   
   return output;
 };
+
+
 
 // Extract mustache variables from input text
 const mustacheVars = text => {
@@ -383,18 +438,17 @@ const variablePrompt = vars => {
 
 // Generate data based on prompt input for a set of variables
 const promptDataForVars = (p, vars) => {
-  const dateFormat = '%Y-%m-%d';
   let data = {};
   
   for (key in p.fieldValues) {
     let fieldValue = p.fieldValues[key];
     if (fieldValue instanceof Date) {
-      data[key] = strftime(fieldValue, dateFormat);
+      data[key] = shortDate(fieldValue);
       vars[key].instances.forEach(instance => {
         // for instances with offset dates, calculate offset date
         if (instance.offset){
           const newDate = offsetDate(fieldValue, instance.offset);
-          data[instance.key] = strftime(newDate, dateFormat);
+          data[instance.key] = shortDate(newDate);
         }
       });
     } 

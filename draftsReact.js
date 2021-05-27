@@ -1,5 +1,3 @@
-// draftsReact
-
 // Babel for transpiling JSX
 require('babel.min.js');
 
